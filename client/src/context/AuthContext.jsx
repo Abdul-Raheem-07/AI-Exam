@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Configure axios defaults
-  axios.defaults.baseURL = 'http://localhost:5000/api';
+  axios.defaults.baseURL = 'https://ai-exam-iota.vercel.app/api';
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
