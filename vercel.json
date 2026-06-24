@@ -4,25 +4,23 @@
     {
       "src": "client/package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
+      "config": {
+        "distDir": "dist"
+      }
     },
     {
-      "src": "server/index.js",
+      "src": "server/src/server.js",
       "use": "@vercel/node"
     }
   ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "server/index.js"
+      "destination": "/server/src/server.js"
     },
     {
-      "source": "/assets/(.*)",
-      "destination": "client/dist/assets/$1"
-    },
-    {
-      "source": "/((?!api|assets).*)" ,
-      "destination": "client/dist/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
