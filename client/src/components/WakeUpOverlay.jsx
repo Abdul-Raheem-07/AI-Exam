@@ -12,7 +12,9 @@ const WakeUpOverlay = ({ children }) => {
 
       const tryPing = async () => {
         try {
-          await axios.get('/health');
+          await axios.get(
+  "https://melodious-imagination-production-2381.up.railway.app/health"
+);
           clearTimeout(timeoutId);
           setIsWaking(false);
           setIsReady(true);

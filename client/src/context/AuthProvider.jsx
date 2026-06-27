@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { AuthContext } from './AuthContext.js';
+axios.defaults.baseURL = "https://melodious-imagination-production-2381.up.railway.app/api";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
