@@ -1,37 +1,40 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import examRoutes from './routes/examRoutes.js';
 import submissionRoutes from './routes/submissionRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
-
 connectDB();
 
 const app = express();
 
-// ─── CORS ────────────────────────────────────────────────────────────────────
-// Allow any localhost port (Vite auto-increments: 5173, 5174, 5175...) + production
+// ─── CORS CONFIG ─────────────────────────────────────────────
 const allowedOrigins = [
-  /^http:\/\/localhost:\d+$/,          // any localhost port
+  /^http:\/\/localhost:\d+$/, 
   'https://ai-exam-iota.vercel.app',
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. Postman, server-to-server)
       if (!origin) return callback(null, true);
-      const allowed = allowedOrigins.some((o) =>
+
+      const isAllowed = allowedOrigins.some((o) =>
         typeof o === 'string' ? o === origin : o.test(origin)
       );
-      allowed
-        ? callback(null, true)
-        : callback(new Error(`CORS policy: origin '${origin}' is not allowed.`));
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -39,30 +42,38 @@ app.use(
   })
 );
 
+// ─── MIDDLEWARE ─────────────────────────────────────────────
 app.use(express.json());
 
-// ─── Routes ──────────────────────────────────────────────────────────────────
+// ─── ROUTES ─────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/admin', adminRoutes);
 
+// ─── ROOT ───────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'API is running' });
 });
 
+// ─── HEALTH (FIXED) ─────────────────────────────────────────
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.status(200).json({
+    success: true,
+    message: 'Server is running',
+    uptime: process.uptime(),
+    timestamp: Date.now(),
+  });
 });
 
-// ─── Error Middleware ─────────────────────────────────────────────────────────
+// ─── ERROR HANDLERS ─────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
-// ─── Local Dev Server ─────────────────────────────────────────────────────────
+// ─── SERVER ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
 
