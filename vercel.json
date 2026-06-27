@@ -1,15 +1,8 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "server/src/server.js",
-      "use": "@vercel/node"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/server/src/server.js"
+      "destination": "https://ai-exam-iota.vercel.app/api/$1"
     },
     {
       "source": "/(.*)",
