@@ -15,10 +15,11 @@ connectDB();
 
 const app = express();
 
-// ─── CORS CONFIG ─────────────────────────────────────────────
+// ─── CORS CONFIG (PRODUCTION READY) ─────────────────────────
 const allowedOrigins = [
-  /^http:\/\/localhost:\d+$/, 
+  /^http:\/\/localhost:\d+$/,
   'https://ai-exam-iota.vercel.app',
+  /^https:\/\/ai-exam-.*\.vercel\.app$/,
 ];
 
 app.use(
@@ -51,12 +52,15 @@ app.use('/api/exams', examRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/admin', adminRoutes);
 
-// ─── ROOT ───────────────────────────────────────────────────
+// ─── ROOT ROUTE ──────────────────────────────────────────────
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'API is running' });
+  res.json({
+    status: 'ok',
+    message: 'API is running',
+  });
 });
 
-// ─── HEALTH (FIXED) ─────────────────────────────────────────
+// ─── HEALTH CHECK ────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -70,7 +74,7 @@ app.get('/health', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-// ─── SERVER ─────────────────────────────────────────────────
+// ─── SERVER START ───────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
