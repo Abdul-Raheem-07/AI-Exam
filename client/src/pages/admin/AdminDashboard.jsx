@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Loader2, Users, FileText, CheckSquare, BarChart2, AlertCircle } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
+import { Loader2, Users, FileText, CheckSquare, TrendingUp, AlertCircle } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: '#0f1729', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '0.625rem 1rem', fontSize: '0.8125rem', color: '#f1f5f9' }}>
+      <p style={{ margin: '0 0 0.25rem', fontWeight: 600 }}>{label}</p>
+      <p style={{ margin: 0, color: '#818cf8' }}>{payload[0].value}</p>
+    </div>
+  );
+};
 
 const AdminDashboard = () => {
   const [metrics, setMetrics] = useState(null);
@@ -18,190 +19,98 @@ const AdminDashboard = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        // Token retrieval if authentication is active
-        const token = localStorage.getItem('token');
-        
-        // Agar backend base URL configure nahi hai, toh environment variable use karein ya exact path dein
-        const API_URL = import.meta.env.VITE_API_URL || ''; 
-        
-        const { data } = await axios.get(`${API_URL}/api/admin/dashboard`, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : ''
-          }
-        });
-        
-        setMetrics(data.metrics);
-      } catch (error) {
-        console.error('Failed to fetch analytics:', error);
-        setError(error.response?.data?.message || 'Failed to load dashboard analytics');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMetrics();
+    axios.get('/admin/dashboard')
+      .then(r => setMetrics(r.data.metrics))
+      .catch(err => setError(err.response?.data?.message || 'Failed to load'))
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] w-full gap-3">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-        <p className="text-sm font-medium text-gray-500 animate-pulse">Loading analytics engine...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Loader2 size={32} color="#6366f1" className="animate-spin" />
+    </div>
+  );
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 max-w-md mx-auto text-center">
-        <div className="p-3 bg-red-100 rounded-full text-red-600 mb-4">
-          <AlertCircle className="h-8 w-8" />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">Analytics Error</h3>
-        <p className="text-sm text-gray-500 mb-4">{error}</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          Retry Connection
-        </button>
+  if (error) return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+      <div style={{ width: 52, height: 52, background: 'rgba(239,68,68,0.12)', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <AlertCircle size={24} color="#f87171" />
       </div>
-    );
-  }
+      <p style={{ color: '#f87171', fontWeight: 600 }}>{error}</p>
+      <button className="btn-primary" onClick={() => window.location.reload()}>Retry</button>
+    </div>
+  );
 
-  if (!metrics) {
-    return (
-      <div className="text-center py-12 text-gray-500">
-        No operational metrics available at this time.
-      </div>
-    );
-  }
+  if (!metrics) return null;
 
-  // Data processing with clean structural mapping
   const roleData = [
-    { name: 'Students', value: metrics.totalStudents || 0, color: '#3b82f6' },
-    { name: 'Teachers', value: metrics.totalTeachers || 0, color: '#10b981' },
+    { name: 'Students', value: metrics.totalStudents || 0 },
+    { name: 'Teachers', value: metrics.totalTeachers || 0 },
   ];
+  const subData = [
+    { name: 'AI Graded', value: metrics.evaluatedSubmissions || 0 },
+    { name: 'Pending', value: Math.max(0, (metrics.totalSubmissions || 0) - (metrics.evaluatedSubmissions || 0)) },
+  ];
+  const roleColors = ['#6366f1', '#8b5cf6'];
+  const subColors  = ['#10b981', '#f59e0b'];
 
-  const totalSubmissions = metrics.totalSubmissions || 0;
-  const evaluatedSubmissions = metrics.evaluatedSubmissions || 0;
-  const pendingSubmissions = Math.max(0, totalSubmissions - evaluatedSubmissions);
-
-  const submissionData = [
-    { name: 'Evaluated (AI)', value: evaluatedSubmissions, color: '#6366f1' },
-    { name: 'Pending Review', value: pendingSubmissions, color: '#f59e0b' },
+  const stats = [
+    { icon: Users,       label: 'Total Users',  value: metrics.totalUsers || 0,   color: '#818cf8', bg: 'rgba(99,102,241,0.12)' },
+    { icon: FileText,    label: 'Total Exams',  value: metrics.totalExams || 0,   color: '#a78bfa', bg: 'rgba(139,92,246,0.12)' },
+    { icon: CheckSquare, label: 'Submissions',  value: metrics.totalSubmissions || 0, color: '#34d399', bg: 'rgba(16,185,129,0.12)' },
+    { icon: TrendingUp,  label: 'Avg Score',    value: Number(metrics.averageScore || 0).toFixed(1), color: '#fbbf24', bg: 'rgba(245,158,11,0.12)' },
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto bg-gray-50 min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Admin Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Real-time oversight of the AI Exam Checking Ecosystem</p>
-      </div>
-
-      {/* Metric Cards Matrix */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center hover:shadow-md transition-shadow">
-          <div className="p-3 bg-blue-50 rounded-xl text-blue-600 mr-4">
-            <Users className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Active Users</p>
-            <p className="text-2xl font-bold text-gray-900 mt-0.5">{metrics.totalUsers || 0}</p>
-          </div>
+    <div className="page-wrapper">
+      <div className="page-content">
+        <div style={{ marginBottom: '2rem' }}>
+          <p style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '0.375rem' }}>System Overview</p>
+          <h1 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#f1f5f9', margin: 0, letterSpacing: '-0.02em' }}>Admin Dashboard</h1>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center hover:shadow-md transition-shadow">
-          <div className="p-3 bg-purple-50 rounded-xl text-purple-600 mr-4">
-            <FileText className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Exams</p>
-            <p className="text-2xl font-bold text-gray-900 mt-0.5">{metrics.totalExams || 0}</p>
-          </div>
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          {stats.map(({ icon: Icon, label, value, color, bg }) => (
+            <div key={label} className="stat-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ width: 44, height: 44, background: bg, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={20} color={color} />
+              </div>
+              <div>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 0.25rem' }}>{label}</p>
+                <p style={{ fontSize: '1.875rem', fontWeight: 900, color: '#f1f5f9', margin: 0, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center hover:shadow-md transition-shadow">
-          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600 mr-4">
-            <CheckSquare className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Submissions</p>
-            <p className="text-2xl font-bold text-gray-900 mt-0.5">{totalSubmissions}</p>
-          </div>
+        {/* Charts */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+          {[
+            { title: 'User Distribution', sub: 'Students vs Teachers', data: roleData, colors: roleColors },
+            { title: 'Submission Status', sub: `AI Success Rate: ${metrics.aiSuccessRate || 0}%`, data: subData, colors: subColors },
+          ].map(({ title, sub, data, colors }) => (
+            <div key={title} className="glass-card" style={{ padding: '1.75rem' }}>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f1f5f9', margin: '0 0 0.25rem' }}>{title}</h3>
+                <p style={{ fontSize: '0.8125rem', color: '#64748b', margin: 0 }}>{sub}</p>
+              </div>
+              <div style={{ height: 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={40}>
+                      {data.map((_, i) => <Cell key={i} fill={colors[i]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ))}
         </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center hover:shadow-md transition-shadow">
-          <div className="p-3 bg-amber-50 rounded-xl text-amber-600 mr-4">
-            <BarChart2 className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Avg Grading Score</p>
-            <p className="text-2xl font-bold text-gray-900 mt-0.5">
-              {Number(metrics.averageScore || 0).toFixed(1)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Analytics Data Streams */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-        
-        {/* User Distribution Panel */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-gray-900">User Demographics</h3>
-            <p className="text-xs text-gray-400">Ratio mapping of registered Students to Teachers</p>
-          </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={roleData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <RechartsTooltip cursor={{ fill: '#f9fafb' }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={45}>
-                  {roleData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Evaluation Tracking Panel */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-gray-900">Evaluation Lifecycle</h3>
-            <p className="text-xs text-gray-400">Overview of AI analyzed scripts vs pending queue</p>
-          </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={submissionData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <RechartsTooltip cursor={{ fill: '#f9fafb' }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={45}>
-                  {submissionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-500">AI Processing Integrity:</span>
-            <span className="px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-full">
-              {metrics.aiSuccessRate || 0}% Accuracy Rate
-            </span>
-          </div>
-        </div>
-
       </div>
     </div>
   );

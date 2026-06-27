@@ -4,230 +4,122 @@ import imageCompression from 'browser-image-compression';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
-import { UploadCloud, X, Loader2 } from 'lucide-react';
+import { UploadCloud, X, Loader2, ArrowLeft, Send, ImagePlus } from 'lucide-react';
 
 const SubmitExam = () => {
   const [images, setImages] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [exam, setExam] = useState(null);
-
   const { id: examId } = useParams();
   const navigate = useNavigate();
 
-  // Fetch exam details
   useEffect(() => {
-    const fetchExam = async () => {
-      try {
-        const { data } = await axios.get(`/exams/${examId}`);
-        setExam(data);
-      } catch (error) {
-        console.error('Failed to load exam', error);
-      }
-    };
-
-    fetchExam();
+    axios.get(`/exams/${examId}`).then(r => setExam(r.data)).catch(() => {});
+    return () => images.forEach(img => URL.revokeObjectURL(img.preview));
   }, [examId]);
 
-  // Cleanup memory leaks
-  useEffect(() => {
-    return () => {
-      images.forEach((img) => URL.revokeObjectURL(img.preview));
-    };
-  }, [images]);
-
   const onDrop = useCallback(async (acceptedFiles) => {
-    const toastId = toast.loading('Compressing images...');
-
+    const toastId = toast.loading('Compressing images…');
     try {
-      const options = {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      };
-
-      const compressedFiles = await Promise.all(
-        acceptedFiles.map((file) => imageCompression(file, options))
+      const compressed = await Promise.all(
+        acceptedFiles.map(f => imageCompression(f, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }))
       );
-
-      const newImages = compressedFiles.map((file) => ({
-        file,
-        preview: URL.createObjectURL(file),
-      }));
-
-      setImages((prev) => [...prev, ...newImages]);
-
-      toast.success('Images ready for upload', { id: toastId });
-    } catch (error) {
-      toast.error('Image processing failed', { id: toastId });
+      setImages(prev => [...prev, ...compressed.map(f => ({ file: f, preview: URL.createObjectURL(f) }))]);
+      toast.success(`${compressed.length} image(s) ready`, { id: toastId });
+    } catch {
+      toast.error('Compression failed', { id: toastId });
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: { 'image/*': [] },
-  });
-
-  const removeImage = (index) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-  };
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] } });
 
   const handleSubmit = async () => {
-    if (!images.length) {
-      toast.error('Please upload at least one image');
-      return;
-    }
-
+    if (!images.length) { toast.error('Add at least one image'); return; }
     setIsUploading(true);
-
-    const formData = new FormData();
-    formData.append('examId', examId);
-
-    images.forEach((img) => {
-      formData.append('images', img.file);
-    });
-
+    const fd = new FormData();
+    fd.append('examId', examId);
+    images.forEach(img => fd.append('images', img.file));
     try {
-      const { data } = await axios.post('/submissions', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      toast.success('Submission successful!');
+      const { data } = await axios.post('/submissions', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success('Submitted successfully!');
       navigate(`/student/submission/${data._id}`);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Submission failed');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Submission failed');
     } finally {
       setIsUploading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Upload Answer Sheets
-          </h1>
-
-          {exam && (
-            <p className="text-blue-600 font-medium mt-1">
-              {exam.title}
-            </p>
-          )}
-
-          <p className="text-gray-600 mt-2">
-            Upload clear, well-lit images of your handwritten answers.
-          </p>
+    <div className="page-wrapper">
+      <div className="page-content" style={{ maxWidth: 760 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+          <button onClick={() => navigate('/student/dashboard')} style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ArrowLeft size={16} />
+          </button>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>Submit Answers</h1>
+            {exam && <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>{exam.title}</p>}
+          </div>
         </div>
 
-        {/* Questions Preview */}
         {exam?.questions?.length > 0 && (
-          <div className="mb-6 bg-blue-50 border border-blue-100 rounded-xl p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">
-              Exam Questions
-            </h3>
-
-            <div className="space-y-3">
-              {exam.questions.map((q, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded-lg p-3 border border-blue-100"
-                >
-                  <p className="font-medium text-gray-800">
-                    Q{index + 1}. {q.questionText}
-                  </p>
-                  <p className="text-sm text-blue-600 mt-1">
-                    Marks: {q.maxMarks}
-                  </p>
+          <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1.25rem' }}>
+            <h2 style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '1rem' }}>Questions</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+              {exam.questions.map((q, i) => (
+                <div key={i} style={{ display: 'flex', gap: '0.875rem' }}>
+                  <div style={{ width: 24, height: 24, background: 'rgba(99,102,241,0.15)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a5b4fc', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                  <div>
+                    <p style={{ color: '#e2e8f0', fontSize: '0.9rem', margin: '0 0 0.125rem' }}>{q.questionText}</p>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{q.maxMarks} marks</span>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Dropzone */}
-        <div
-          {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
-            isDragActive
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-gray-400'
-          }`}
-        >
-          <input {...getInputProps()} />
+        <div className="glass-card" style={{ padding: '1.75rem' }}>
+          <h2 style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '1rem' }}>Upload Answer Sheets</h2>
 
-          <UploadCloud className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <div {...getRootProps()} style={{ border: `2px dashed ${isDragActive ? '#6366f1' : 'rgba(255,255,255,0.1)'}`, borderRadius: 12, padding: '3rem 2rem', textAlign: 'center', cursor: 'pointer', background: isDragActive ? 'rgba(99,102,241,0.06)' : 'rgba(255,255,255,0.02)', transition: 'all 0.2s ease' }}>
+            <input {...getInputProps()} />
+            <div style={{ width: 52, height: 52, background: 'rgba(99,102,241,0.12)', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <UploadCloud size={24} color={isDragActive ? '#818cf8' : '#475569'} />
+            </div>
+            {isDragActive
+              ? <p style={{ color: '#818cf8', fontWeight: 600, margin: 0 }}>Drop here…</p>
+              : <>
+                  <p style={{ color: '#e2e8f0', fontWeight: 600, margin: '0 0 0.375rem' }}>Drag & drop answer sheets</p>
+                  <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: 0 }}>or click to browse · auto-compressed</p>
+                </>
+            }
+          </div>
 
-          {isDragActive ? (
-            <p className="text-blue-600 font-medium">
-              Drop images here...
-            </p>
-          ) : (
-            <div>
-              <p className="text-gray-700 font-medium">
-                Drag & drop answer sheets here
-              </p>
-              <p className="text-gray-500 text-sm mt-1">
-                or click to select files (auto-compressed)
-              </p>
+          {images.length > 0 && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <p style={{ fontSize: '0.8125rem', color: '#94a3b8', fontWeight: 600, marginBottom: '0.75rem' }}>{images.length} image(s) selected</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.75rem' }}>
+                {images.map((img, i) => (
+                  <div key={i} style={{ position: 'relative', borderRadius: 9, overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '1' }}>
+                    <img src={img.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button onClick={() => setImages(p => p.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+                <div {...getRootProps()} style={{ border: '2px dashed rgba(255,255,255,0.1)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', aspectRatio: '1' }}>
+                  <input {...getInputProps()} /><ImagePlus size={18} color="#475569" />
+                </div>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Preview */}
-        {images.length > 0 && (
-          <div className="mt-8">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Selected Images ({images.length})
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {images.map((img, index) => (
-                <div
-                  key={index}
-                  className="relative group rounded-lg overflow-hidden border border-gray-200"
-                >
-                  <img
-                    src={img.preview}
-                    alt="preview"
-                    className="w-full h-32 object-cover"
-                  />
-
-                  <button
-                    onClick={() => removeImage(index)}
-                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Submit */}
-        <div className="mt-8">
-          <button
-            onClick={handleSubmit}
-            disabled={!images.length || isUploading}
-            className={`w-full flex items-center justify-center px-6 py-3 rounded-md text-white font-medium transition ${
-              !images.length || isUploading
-                ? 'bg-blue-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                Uploading...
-              </>
-            ) : (
-              `Submit Answers (${images.length})`
-            )}
+          <button onClick={handleSubmit} disabled={!images.length || isUploading} className="btn-primary" style={{ width: '100%', marginTop: '1.5rem', padding: '0.875rem', opacity: (!images.length || isUploading) ? 0.5 : 1 }}>
+            {isUploading ? <><Loader2 size={15} className="animate-spin" /> Uploading…</> : <><Send size={15} /> Submit Answers</>}
           </button>
         </div>
-
       </div>
     </div>
   );
