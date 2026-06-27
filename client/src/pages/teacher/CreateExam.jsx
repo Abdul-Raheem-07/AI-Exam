@@ -2,145 +2,221 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, ArrowLeft, Save, Brain } from 'lucide-react';
 
 const CreateExam = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [rubric, setRubric] = useState('');
-  const [questions, setQuestions] = useState([{ questionText: '', maxMarks: 0 }]);
+  const [questions, setQuestions] = useState([
+    { questionText: '', maxMarks: 10 },
+  ]);
+  const [saving, setSaving] = useState(false);
+
   const navigate = useNavigate();
 
   const handleAddQuestion = () => {
-    setQuestions([...questions, { questionText: '', maxMarks: 0 }]);
+    setQuestions((prev) => [...prev, { questionText: '', maxMarks: 10 }]);
   };
 
   const handleRemoveQuestion = (index) => {
-    const newQuestions = questions.filter((_, i) => i !== index);
-    setQuestions(newQuestions);
+    setQuestions((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleQuestionChange = (index, field, value) => {
-    const newQuestions = [...questions];
-    newQuestions[index][field] = value;
-    setQuestions(newQuestions);
+    const updated = [...questions];
+    updated[index][field] = value;
+    setQuestions(updated);
+  };
+
+  const validateForm = () => {
+    if (!title.trim()) return 'Title is required';
+    if (!rubric.trim()) return 'Rubric is required';
+
+    const hasEmptyQuestion = questions.some(
+      (q) => !q.questionText.trim()
+    );
+    if (hasEmptyQuestion) return 'All questions must be filled';
+
+    const hasInvalidMarks = questions.some(
+      (q) => !q.maxMarks || q.maxMarks <= 0
+    );
+    if (hasInvalidMarks) return 'Marks must be greater than 0';
+
+    return null;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const error = validateForm();
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    setSaving(true);
+
     try {
       await axios.post('/exams', {
-        title,
-        description,
-        rubric,
-        questions,
+        title: title.trim(),
+        description: description.trim(),
+        rubric: rubric.trim(),
+        questions: questions.map((q) => ({
+          questionText: q.questionText.trim(),
+          maxMarks: Number(q.maxMarks),
+        })),
       });
+
       toast.success('Exam created successfully');
       navigate('/teacher/dashboard');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create exam');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create exam');
+    } finally {
+      setSaving(false);
     }
   };
 
+  const totalMarks = questions.reduce(
+    (sum, q) => sum + (Number(q.maxMarks) || 0),
+    0
+  );
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New Exam</h1>
+    <div className="page-wrapper">
+      <div className="page-content" style={{ maxWidth: 760 }}>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+          <button
+            onClick={() => navigate('/teacher/dashboard')}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 9,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <ArrowLeft size={16} />
+          </button>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700">Exam Title</label>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f1f5f9' }}>
+              Create New Exam
+            </h1>
+            <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
+              Build structured AI-evaluated exam
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+
+          {/* Basic Info */}
+          <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
+            <h2 style={{ color: '#e2e8f0', marginBottom: '1rem', display: 'flex', gap: 8 }}>
+              <Brain size={16} /> Exam Details
+            </h2>
+
             <input
-              type="text"
-              required
+              className="input-dark"
+              placeholder="Exam Title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             />
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Description</label>
             <textarea
-              rows={3}
+              className="input-dark"
+              placeholder="Description (optional)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              style={{ marginTop: 10 }}
             />
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Evaluation Rubric</label>
-            <p className="text-xs text-gray-500 mb-2">Provide instructions for the AI on how to grade this exam.</p>
             <textarea
-              rows={4}
-              required
+              className="input-dark"
+              placeholder="AI Grading Rubric (very important)"
               value={rubric}
               onChange={(e) => setRubric(e.target.value)}
-              placeholder="e.g., Question 1 focuses on clarity. Question 2 requires mentioning X and Y."
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              style={{ marginTop: 10 }}
             />
           </div>
 
-          <div className="border-t border-gray-200 pt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Questions</h2>
+          {/* Questions */}
+          <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h2 style={{ color: '#e2e8f0' }}>
+                Questions ({totalMarks} marks)
+              </h2>
+
               <button
                 type="button"
                 onClick={handleAddQuestion}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="btn-secondary"
               >
-                <PlusCircle className="mr-1.5 h-4 w-4" />
-                Add Question
+                <PlusCircle size={14} /> Add
               </button>
             </div>
 
-            {questions.map((q, index) => (
-              <div key={index} className="bg-gray-50 p-4 rounded-md mb-4 border border-gray-200 relative">
+            {questions.map((q, i) => (
+              <div key={i} style={{ marginBottom: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 10 }}>
+                
+                <input
+                  className="input-dark"
+                  placeholder={`Question ${i + 1}`}
+                  value={q.questionText}
+                  onChange={(e) =>
+                    handleQuestionChange(i, 'questionText', e.target.value)
+                  }
+                />
+
+                <input
+                  className="input-dark"
+                  type="number"
+                  min="1"
+                  placeholder="Marks"
+                  value={q.maxMarks}
+                  onChange={(e) =>
+                    handleQuestionChange(i, 'maxMarks', e.target.value)
+                  }
+                  style={{ marginTop: 8, width: 120 }}
+                />
+
                 {questions.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => handleRemoveQuestion(index)}
-                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                    onClick={() => handleRemoveQuestion(i)}
+                    style={{
+                      marginTop: 8,
+                      color: '#f87171',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <Trash2 className="h-5 w-5" />
+                    <Trash2 size={14} /> Remove
                   </button>
                 )}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Question {index + 1}</label>
-                    <input
-                      type="text"
-                      required
-                      value={q.questionText}
-                      onChange={(e) => handleQuestionChange(index, 'questionText', e.target.value)}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Max Marks</label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={q.maxMarks}
-                      onChange={(e) => handleQuestionChange(index, 'maxMarks', Number(e.target.value))}
-                      className="mt-1 block w-full sm:w-1/3 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    />
-                  </div>
-                </div>
               </div>
             ))}
           </div>
 
-          <div className="pt-4">
-            <button
-              type="submit"
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Save Exam
-            </button>
-          </div>
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary"
+            style={{ width: '100%', padding: '0.9rem' }}
+          >
+            {saving ? 'Saving...' : <><Save size={16} /> Save Exam</>}
+          </button>
         </form>
       </div>
     </div>

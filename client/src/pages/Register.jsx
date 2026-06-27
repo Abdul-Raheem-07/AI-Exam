@@ -1,95 +1,235 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import { Brain, Mail, Lock, User, ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 
 const Register = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('Student');
+  const [loading, setLoading] = useState(false);
+
   const { register } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     try {
       const user = await register(name, email, password, role);
+
       if (user.role === 'Student') navigate('/student/dashboard');
       else if (user.role === 'Teacher') navigate('/teacher/dashboard');
       else navigate('/admin/dashboard');
+
     } catch (error) {
-      // Error handled in context
+      // handled globally in context
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
-          </h2>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <input
-                type="text"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Full Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div>
-              <input
-                type="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <input
-                type="password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <div>
-              <select
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <option value="Student">Student</option>
-                <option value="Teacher">Teacher</option>
-              </select>
-            </div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg-base)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1.5rem',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      
+      {/* Background Glow */}
+      <div style={{
+        position: 'absolute',
+        top: '-20%',
+        right: '15%',
+        width: 520,
+        height: 520,
+        background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+
+      <div style={{ width: '100%', maxWidth: 440, animation: 'fadeInUp 0.4s ease both' }}>
+
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{
+            width: 54,
+            height: 54,
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            borderRadius: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1rem'
+          }}>
+            <Brain size={26} color="#fff" />
           </div>
 
-          <div>
+          <h1 style={{
+            fontSize: '1.625rem',
+            fontWeight: 800,
+            color: '#f1f5f9',
+            margin: 0
+          }}>
+            Create account
+          </h1>
+
+          <p style={{
+            color: '#64748b',
+            marginTop: '0.4rem',
+            fontSize: '0.875rem'
+          }}>
+            Join ExamAI and start your journey
+          </p>
+        </div>
+
+        {/* Form Card */}
+        <div className="glass-card" style={{ padding: '2rem' }}>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.125rem' }}>
+
+            {/* Name */}
+            <div>
+              <label className="label-dark">Full Name</label>
+              <div style={{ position: 'relative' }}>
+                <User size={15} style={{
+                  position: 'absolute',
+                  left: '0.875rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#64748b'
+                }} />
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="input-dark"
+                  placeholder="Enter your full name"
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="label-dark">Email Address</label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={15} style={{
+                  position: 'absolute',
+                  left: '0.875rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#64748b'
+                }} />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-dark"
+                  placeholder="you@example.com"
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="label-dark">Password</label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={15} style={{
+                  position: 'absolute',
+                  left: '0.875rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#64748b'
+                }} />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-dark"
+                  placeholder="Create a strong password"
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+            </div>
+
+            {/* Role */}
+            <div>
+              <label className="label-dark">Select Role</label>
+              <div style={{ position: 'relative' }}>
+                <ChevronDown size={15} style={{
+                  position: 'absolute',
+                  right: '0.875rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#64748b',
+                  pointerEvents: 'none'
+                }} />
+
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="input-dark"
+                  style={{ appearance: 'none', paddingRight: '2.5rem', cursor: 'pointer' }}
+                >
+                  <option value="Student">Student</option>
+                  <option value="Teacher">Teacher</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Submit */}
             <button
               type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
+              disabled={loading}
+              className="btn-primary"
+              style={{ marginTop: '0.5rem' }}
             >
-              Register
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <>
+                  <span>Create Account</span>
+                  <ArrowRight size={15} />
+                </>
+              )}
             </button>
-          </div>
 
-          <div className="text-center text-sm">
-            <span className="text-gray-600">Already have an account? </span>
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+          </form>
+
+          {/* Footer */}
+          <div className="divider" style={{ marginTop: '1.5rem' }} />
+
+          <p style={{
+            textAlign: 'center',
+            fontSize: '0.8125rem',
+            color: '#64748b',
+            margin: 0
+          }}>
+            Already have an account?{' '}
+            <Link
+              to="/login"
+              style={{
+                color: '#818cf8',
+                fontWeight: 600,
+                textDecoration: 'none'
+              }}
+            >
               Sign in
             </Link>
-          </div>
-        </form>
+          </p>
+
+        </div>
       </div>
     </div>
   );

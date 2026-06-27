@@ -3,7 +3,6 @@ import axios from 'axios';
 
 export const AuthContext = createContext();
 
-// ✅ Auto-detect: dev = local backend, production = Vercel backend
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV
@@ -12,3 +11,4 @@ const API_BASE_URL =
 
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.withCredentials = true;
+axios.defaults.timeout = 10000;

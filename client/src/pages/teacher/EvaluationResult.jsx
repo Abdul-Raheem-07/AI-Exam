@@ -1,51 +1,106 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Loader2, CheckCircle, AlertCircle, RefreshCw, Edit3 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import toast from 'react-hot-toast';
 import { AuthContext } from '../../context/AuthContext';
 
+import {
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  Edit3,
+  ArrowLeft,
+  Brain,
+  Clock
+} from 'lucide-react';
+
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip
+} from 'recharts';
+
+const StatusBadge = ({ status }) => {
+  const styles = {
+    Pending: { color: '#fbbf24', bg: 'rgba(245,158,11,0.12)' },
+    Processing: { color: '#818cf8', bg: 'rgba(99,102,241,0.12)' },
+    Completed: { color: '#34d399', bg: 'rgba(16,185,129,0.12)' },
+    Failed: { color: '#f87171', bg: 'rgba(239,68,68,0.12)' }
+  };
+
+  const s = styles[status] || styles.Pending;
+
+  return (
+    <span style={{
+      padding: '0.4rem 0.8rem',
+      borderRadius: 999,
+      fontSize: 12,
+      fontWeight: 600,
+      background: s.bg,
+      color: s.color,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6
+    }}>
+      {status === 'Completed' && <CheckCircle size={14} />}
+      {status === 'Failed' && <AlertCircle size={14} />}
+      {status === 'Processing' && <RefreshCw size={14} className="animate-spin" />}
+      {status}
+    </span>
+  );
+};
+
 const EvaluationResult = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
-  
-  // Override state
+
   const [showOverride, setShowOverride] = useState(false);
   const [newScore, setNewScore] = useState('');
   const [justification, setJustification] = useState('');
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       const { data } = await axios.get(`/submissions/${id}/status`);
       setSubmission(data);
-      if (data.status === 'Completed' || data.status === 'Failed') {
-        setPolling(false);
-      } else {
-        setPolling(true);
-      }
-    } catch (error) {
-      toast.error('Failed to fetch status');
+
+      const isActive = data?.status === 'Pending' || data?.status === 'Processing';
+      setPolling(isActive);
+    } catch (err) {
+      toast.error('Failed to fetch submission status');
       setPolling(false);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchStatus();
   }, [id]);
 
   useEffect(() => {
-    let interval;
-    if (polling) {
-      interval = setInterval(fetchStatus, 5000); // Poll every 5 seconds
-    }
+    fetchStatus();
+  }, [fetchStatus]);
+
+  useEffect(() => {
+    if (!polling) return;
+
+    const interval = setInterval(fetchStatus, 4000);
     return () => clearInterval(interval);
-  }, [polling]);
+  }, [polling, fetchStatus]);
+
+  const startEvaluation = async () => {
+    try {
+      await axios.post(`/submissions/evaluate/${id}`);
+      toast.success('AI evaluation started');
+      fetchStatus();
+    } catch {
+      toast.error('Could not start evaluation');
+    }
+  };
 
   const handleOverride = async (e) => {
     e.preventDefault();
@@ -54,213 +109,187 @@ const EvaluationResult = () => {
         newScore: Number(newScore),
         justification
       });
-      toast.success('Marks overridden successfully');
+
+      toast.success('Marks updated');
       setShowOverride(false);
       fetchStatus();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to override marks');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Override failed');
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-blue-600" /></div>;
-
-  if (!submission) return <div className="text-center py-12">Submission not found.</div>;
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'Pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Processing': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Failed': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  const confidence = submission?.confidence || 0;
 
   const confidenceData = [
-    { name: 'Confidence', value: submission.confidence || 0 },
-    { name: 'Uncertainty', value: 100 - (submission.confidence || 0) }
+    { name: 'Confidence', value: confidence },
+    { name: 'Uncertainty', value: 100 - confidence }
   ];
-  const COLORS = ['#10b981', '#f3f4f6'];
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin" size={28} />
+      </div>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        Submission not found
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        
-        {/* Header Status Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">AI Evaluation Result</h1>
-            <p className="text-sm text-gray-500 mt-1">Submission ID: {submission._id}</p>
-          </div>
-          <div className="mt-4 md:mt-0 flex items-center space-x-4">
-            {submission.status === 'Pending' && (
-              <button 
-                onClick={async () => {
-                  try {
-                    await axios.post(`/submissions/evaluate/${id}`);
-                    toast.success('Evaluation started!');
-                    fetchStatus();
-                  } catch (e) {
-                    toast.error('Failed to start evaluation');
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
-              >
-                Start AI Evaluation
-              </button>
-            )}
-            {polling && <span className="text-sm text-gray-500 animate-pulse flex items-center"><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> AI is grading...</span>}
-            <span className={`px-4 py-2 rounded-full border font-medium text-sm flex items-center ${getStatusColor(submission.status)}`}>
-              {submission.status === 'Completed' && <CheckCircle className="h-4 w-4 mr-2" />}
-              {submission.status === 'Failed' && <AlertCircle className="h-4 w-4 mr-2" />}
-              {submission.status}
-            </span>
-          </div>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+
+      {/* Header */}
+      <div className="max-w-5xl mx-auto flex justify-between items-center mb-6">
+        <button onClick={() => navigate(-1)}>
+          <ArrowLeft />
+        </button>
+
+        <div className="text-center">
+          <h1 className="text-xl font-bold">Evaluation Result</h1>
+          <p className="text-xs text-gray-500">ID: {submission._id?.slice(-6)}</p>
         </div>
 
-        {submission.status === 'Completed' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Score Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center">
-              <h3 className="text-lg font-medium text-gray-700 mb-2">Total Score</h3>
-              <div className="text-5xl font-extrabold text-blue-600">
-                {submission.totalMarks}
-              </div>
-              <p className="text-sm text-gray-500 mt-2">Points Awarded</p>
-            </div>
+        <div className="flex items-center gap-3">
+          {polling && (
+            <span className="text-sm text-blue-500 flex items-center gap-1">
+              <Brain size={14} className="animate-pulse" />
+              Grading
+            </span>
+          )}
 
-            {/* Confidence Meter */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center">
-              <h3 className="text-lg font-medium text-gray-700 mb-2">AI Confidence</h3>
-              <div className="h-32 w-32 relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={confidenceData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={55}
-                      startAngle={90}
-                      endAngle={-270}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {confidenceData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex items-center justify-center flex-col">
-                  <span className="text-xl font-bold text-gray-800">{submission.confidence}%</span>
-                </div>
-              </div>
-            </div>
+          {submission.status === 'Pending' && (
+            <button
+              onClick={startEvaluation}
+              className="px-3 py-1 bg-blue-600 text-white rounded"
+            >
+              Start AI
+            </button>
+          )}
 
-            {/* Actions / Info */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h3 className="text-lg font-medium text-gray-700 mb-4">Metadata</h3>
-              <div className="space-y-3 text-sm text-gray-600">
-                <div className="flex justify-between">
-                  <span>Evaluated By AI:</span>
-                  <span className="font-semibold">{submission.evaluatedByAI ? 'Yes' : 'No'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Last Updated:</span>
-                  <span className="font-semibold">{new Date(submission.updatedAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Feedback Section */}
-            <div className="md:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-gray-900">Question-wise Feedback</h3>
-                {user?.role === 'Teacher' && (
-                  <button 
-                    onClick={() => {
-                      setNewScore(submission.totalMarks);
-                      setShowOverride(true);
-                    }}
-                    className="flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md font-medium"
-                  >
-                    <Edit3 className="h-4 w-4 mr-2" /> Override Marks
-                  </button>
-                )}
-              </div>
-              
-              <div className="space-y-6">
-                {submission.feedback?.map((fb, idx) => (
-                  <div key={idx} className="p-4 rounded-lg border border-gray-100 bg-gray-50 flex flex-col sm:flex-row gap-4">
-                    <div className="sm:w-24 flex-shrink-0 text-center">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Question</div>
-                      <div className="text-2xl font-bold text-gray-800">{fb.question}</div>
-                    </div>
-                    <div className="sm:w-24 flex-shrink-0 text-center border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Score</div>
-                      <div className="text-2xl font-bold text-green-600">{fb.score}</div>
-                    </div>
-                    <div className="flex-grow border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-6">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">AI Remarks</div>
-                      <p className="text-gray-700 text-sm leading-relaxed">{fb.remarks}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        )}
-
+          <StatusBadge status={submission.status} />
+        </div>
       </div>
+
+      {/* Main */}
+      {submission.status === 'Completed' && (
+        <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-4">
+
+          {/* Score */}
+          <div className="bg-white p-6 rounded-xl text-center">
+            <p className="text-sm text-gray-500">Total Score</p>
+            <h2 className="text-4xl font-bold text-blue-600">
+              {submission.totalMarks || 0}
+            </h2>
+          </div>
+
+          {/* Confidence */}
+          <div className="bg-white p-6 rounded-xl text-center">
+            <p className="text-sm text-gray-500">Confidence</p>
+
+            <div className="h-32">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={confidenceData} innerRadius={35} outerRadius={50} dataKey="value">
+                    <Cell fill="#6366f1" />
+                    <Cell fill="#e5e7eb" />
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <p className="font-bold">{confidence}%</p>
+          </div>
+
+          {/* Meta */}
+          <div className="bg-white p-6 rounded-xl">
+            <p className="text-sm text-gray-500">Meta</p>
+
+            <div className="mt-2 text-sm space-y-2">
+              <div className="flex justify-between">
+                <span>AI Evaluated</span>
+                <b>{submission.evaluatedByAI ? 'Yes' : 'No'}</b>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Updated</span>
+                <b>{new Date(submission.updatedAt).toLocaleDateString()}</b>
+              </div>
+            </div>
+          </div>
+
+          {/* Feedback */}
+          <div className="md:col-span-3 bg-white p-6 rounded-xl">
+            <div className="flex justify-between mb-4">
+              <h2 className="font-bold">Feedback</h2>
+
+              {user?.role === 'Teacher' && (
+                <button
+                  onClick={() => {
+                    setNewScore(submission.totalMarks);
+                    setShowOverride(true);
+                  }}
+                  className="text-sm text-blue-600"
+                >
+                  <Edit3 size={14} /> Override
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {submission.feedback?.map((f, i) => (
+                <div key={i} className="border p-3 rounded">
+                  <p className="font-semibold">
+                    Q{f.question}: {f.score} marks
+                  </p>
+                  <p className="text-sm text-gray-600">{f.remarks}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
 
       {/* Override Modal */}
       {showOverride && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Manual Override</h3>
-            <form onSubmit={handleOverride} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">New Total Score</label>
-                <input 
-                  type="number" 
-                  required 
-                  value={newScore}
-                  onChange={(e) => setNewScore(e.target.value)}
-                  className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Justification / Reason</label>
-                <textarea 
-                  required
-                  rows={3}
-                  value={justification}
-                  onChange={(e) => setJustification(e.target.value)}
-                  className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Why are you changing the AI's marks?"
-                ></textarea>
-              </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setShowOverride(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-                >
-                  Confirm Change
-                </button>
-              </div>
-            </form>
-          </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <form
+            onSubmit={handleOverride}
+            className="bg-white p-6 rounded-xl w-96 space-y-3"
+          >
+            <h3 className="font-bold">Override Marks</h3>
+
+            <input
+              type="number"
+              value={newScore}
+              onChange={(e) => setNewScore(e.target.value)}
+              className="w-full border p-2 rounded"
+              placeholder="New Score"
+            />
+
+            <textarea
+              value={justification}
+              onChange={(e) => setJustification(e.target.value)}
+              className="w-full border p-2 rounded"
+              placeholder="Reason"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowOverride(false)}>
+                Cancel
+              </button>
+              <button className="bg-blue-600 text-white px-3 py-1 rounded">
+                Save
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
