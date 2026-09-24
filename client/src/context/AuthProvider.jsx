@@ -1,40 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { AuthContext } from './AuthContext.js';
 
 // 🔥 API base URL (from env)
 const API = import.meta.env.VITE_API_URL;
+axios.defaults.baseURL = API;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ─── INIT AUTH ─────────────────────────────────────────────
+  const clearAuth = () => {
+    setUser(null);
+    localStorage.removeItem('user');
+    delete axios.defaults.headers.common['Authorization'];
+  };
+
   useEffect(() => {
+    let active = true;
     const storedUser = localStorage.getItem('user');
+    let parsedUser = null;
 
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
+    try { parsedUser = storedUser ? JSON.parse(storedUser) : null; } catch { localStorage.removeItem('user'); }
 
-        if (parsedUser?.token) {
-          axios.defaults.headers.common['Authorization'] =
-            `Bearer ${parsedUser.token}`;
-        }
-      } catch (err) {
-        localStorage.removeItem('user');
-      }
+    if (!parsedUser?.token) {
+      queueMicrotask(() => { if (active) setLoading(false); });
+      return () => { active = false; };
     }
 
-    setLoading(false);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${parsedUser.token}`;
+    axios.get('/user').then(({ data }) => {
+      if (!active) return;
+      const restoredUser = { ...data, token: parsedUser.token };
+      setUser(restoredUser);
+      localStorage.setItem('user', JSON.stringify(restoredUser));
+    }).catch(error => {
+      if (!active) return;
+      if (error.response?.status === 401) clearAuth();
+      else setUser(parsedUser);
+    }).finally(() => { if (active) setLoading(false); });
+
+    return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(response => response, error => {
+      if (error.response?.status === 401 && localStorage.getItem('user')) {
+        clearAuth();
+        if (window.location.pathname !== '/login') window.location.assign('/login');
+      }
+      return Promise.reject(error);
+    });
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
+
+  // ─── INIT AUTH ─────────────────────────────────────────────
+  useEffect(() => {
+    if (user?.token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${user.token}`;
+    }
+  }, [user]);
 
   // ─── LOGIN ────────────────────────────────────────────────
   const login = async (email, password) => {
     try {
-      const { data } = await axios.post(`${API}/auth/login`, {
+      const { data } = await axios.post('/login', {
         email,
         password,
       });
@@ -58,10 +89,11 @@ export const AuthProvider = ({ children }) => {
   // ─── REGISTER ─────────────────────────────────────────────
   const register = async (name, email, password, role) => {
     try {
-      const { data } = await axios.post(`${API}/auth/register`, {
+      const { data } = await axios.post('/register', {
         name,
         email,
         password,
+        password_confirmation: password,
         role,
       });
 
@@ -83,9 +115,7 @@ export const AuthProvider = ({ children }) => {
 
   // ─── LOGOUT ───────────────────────────────────────────────
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
+    clearAuth();
     toast.success('Logged out successfully');
   };
 

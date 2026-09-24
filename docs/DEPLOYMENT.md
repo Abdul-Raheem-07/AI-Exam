@@ -1,54 +1,66 @@
-# AI Exam Checking System - Deployment Guide
+# Production Deployment
 
-This guide will walk you through deploying the AI Exam Checking System.
+## Backend
 
-## Prerequisites
+Use a PHP 8.2+ Laravel-compatible service such as Laravel Forge, a managed VPS, or a PHP App Service. The backend document root must point to `server/public`.
 
-Ensure you have accounts for the following services:
-- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (Database)
-- [Cloudinary](https://cloudinary.com/) (Image Storage)
-- [Google AI Studio](https://aistudio.google.com/) (Gemini API Key)
-- [Render](https://render.com/) (Backend Hosting)
-- [Vercel](https://vercel.com/) (Frontend Hosting)
+1. Deploy the repository and set the working directory to `server`.
+2. Run `composer install --no-dev --optimize-autoloader`.
+3. Create `.env` from `server/.env.example`.
+4. Set `APP_ENV=production`, `APP_DEBUG=false`, a generated `APP_KEY`, production `APP_URL`, MySQL credentials, `GEMINI_API_KEY`, and the deployed frontend in `CORS_ALLOWED_ORIGINS`.
+5. Run:
 
----
+```bash
+php artisan migrate --force
+php artisan storage:link
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
 
-## 1. Database Setup (MongoDB Atlas)
-1. Create a new cluster on MongoDB Atlas.
-2. In Network Access, whitelist `0.0.0.0/0` (Allow access from anywhere).
-3. In Database Access, create a database user and copy the password.
-4. Click "Connect", select "Connect your application", and copy the connection string (`MONGO_URI`).
+6. Run a separate persistent worker:
 
-## 2. Backend Deployment (Render)
-1. Create a new "Web Service" on Render.
-2. Connect your GitHub repository.
-3. Set the Root Directory to `server`.
-4. Build Command: `npm install`
-5. Start Command: `npm start`
-6. Add the following Environment Variables in Render:
-   - `PORT` = `10000`
-   - `MONGO_URI` = `<Your MongoDB connection string>`
-   - `JWT_SECRET` = `<Any strong random string>`
-   - `CLOUDINARY_CLOUD_NAME` = `<Your Cloudinary Cloud Name>`
-   - `CLOUDINARY_API_KEY` = `<Your Cloudinary API Key>`
-   - `CLOUDINARY_API_SECRET` = `<Your Cloudinary API Secret>`
-   - `GEMINI_API_KEY` = `<Your Gemini API Key>`
-7. Deploy the service and copy the provided Render URL (e.g., `https://ai-exam-backend.onrender.com`).
+```bash
+php artisan queue:work --tries=3 --timeout=120
+```
 
-## 3. Frontend Deployment (Vercel)
-1. In the `client` folder, open `src/context/AuthContext.jsx` and update the `axios.defaults.baseURL` to your Render backend URL:
-   ```javascript
-   axios.defaults.baseURL = 'https://ai-exam-backend.onrender.com/api';
-   ```
-   *(Note: For a better setup, you should use environment variables in Vite like `import.meta.env.VITE_API_URL`, but this works for direct edits).*
-2. Push your code to GitHub.
-3. Create a new project on Vercel and import your repository.
-4. Set the Framework Preset to **Vite**.
-5. Set the Root Directory to `client`.
-6. Click **Deploy**.
+Configure the host process manager to restart the worker after failure and deploys. The database queue requires the migrated `jobs` and `failed_jobs` tables.
 
-## 4. Testing Edge Cases
-Your system includes features designed to handle real-world scenarios:
-- **Blurry Images/Empty Pages:** The Gemini prompt asks it to output confidence. If the image is blurry, confidence will drop, which alerts the teacher in the UI.
-- **Malicious Uploads:** Multer restricts uploads to standard image formats and limits the file size to 10MB per file.
-- **Render Free Tier Sleep:** The frontend includes a `WakeUpOverlay` that automatically detects when Render is starting up (which takes ~50s) and displays a friendly loading screen to the user instead of timing out.
+## Frontend
+
+Deploy `client/` as a Vite project.
+
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable: `VITE_API_URL=https://api.example.com/api`
+
+Do not put `GEMINI_API_KEY`, MySQL credentials, or Laravel secrets in Vercel variables.
+
+## MySQL
+
+Create a production MySQL database and set:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=your-host
+DB_PORT=3306
+DB_DATABASE=ai_exam
+DB_USERNAME=your-user
+DB_PASSWORD=your-password
+```
+
+Run migrations only from the backend release environment with `php artisan migrate --force`.
+
+## Storage and uploads
+
+Answer-sheet files are stored on Laravel's private local disk and are not exposed through a public storage symlink. Use a persistent encrypted disk or replace the disk implementation with private object storage for multi-instance production deployments.
+
+Accepted answer files are JPG, JPEG, PNG, and PDF, up to 20 MB each, with a maximum of 10 files per submission.
+
+## CORS and Sanctum
+
+This application uses Sanctum personal-access-token authentication. The React app sends the returned bearer token in the `Authorization` header. Set `CORS_ALLOWED_ORIGINS` to the exact frontend origins, comma-separated. Never use `*` with credentials.
+
+## Health check
+
+`GET /api/health` returns the API health response. Verify it after deployment before testing authenticated flows.

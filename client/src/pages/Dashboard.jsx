@@ -1,175 +1,63 @@
-import React, { useContext, useState, useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Clock, CheckCircle, ChevronRight, PlusSquare, Upload, Loader2, FileText } from 'lucide-react';
+import { BookOpen, Clock3, CheckCircle2, ChevronRight, Plus, Upload, Loader2, FileText, Sparkles, ClipboardList } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const StatusBadge = ({ status }) => {
-  const map = {
-    Pending:    { cls: 'badge badge-yellow' },
-    Processing: { cls: 'badge badge-indigo' },
-    Completed:  { cls: 'badge badge-green'  },
-    Failed:     { cls: 'badge badge-red'    },
-    Active:     { cls: 'badge badge-green'  },
-    Inactive:   { cls: 'badge badge-slate'  },
-  };
-  const s = map[status] || { cls: 'badge badge-slate' };
-  return <span className={s.cls}>{status}</span>;
+  const cls = { Pending: 'badge badge-yellow', Processing: 'badge badge-indigo', Completed: 'badge badge-green', Failed: 'badge badge-red', Active: 'badge badge-green', Inactive: 'badge badge-slate' }[status] || 'badge badge-slate';
+  return <span className={cls}>{status}</span>;
 };
 
 const Dashboard = () => {
-  const { user } = useContext(AuthContext);
-  const navigate = useNavigate();
-  const [exams, setExams] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+  const { user } = useContext(AuthContext); const navigate = useNavigate();
+  const [exams, setExams] = useState([]); const [submissions, setSubmissions] = useState([]); const [sections, setSections] = useState([]); const [tests, setTests] = useState([]); const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [eRes, sRes] = await Promise.all([
-          axios.get('/exams'),
-          axios.get('/submissions')
-        ]);
-        setExams(eRes.data || []);
-        setSubmissions(sRes.data || []);
-      } catch {
-        toast.error('Failed to load dashboard');
-      } finally {
-        setLoading(false);
-      }
+    let active = true;
+    const examPath = user?.role === 'Student' ? '/student/exams' : '/exams';
+    const submissionPath = user?.role === 'Student' ? '/student/results' : '/submissions';
+    const sectionPath = user?.role === 'Student' ? '/student/sections' : '/teacher/sections';
+    const testPath = user?.role === 'Student' ? '/student/tests' : '/teacher/tests';
+    const loadRequired = async () => {
+      const results = await Promise.allSettled([axios.get(examPath), axios.get(submissionPath), axios.get(testPath)]);
+      if (!active) return;
+      const [examResult, submissionResult, testResult] = results;
+      if (examResult.status === 'fulfilled') setExams(examResult.value.data || []);
+      else if (examResult.reason?.response?.status !== 401) toast.error('Unable to load your exams.');
+      if (submissionResult.status === 'fulfilled') setSubmissions(submissionResult.value.data || []);
+      else if (submissionResult.reason?.response?.status !== 401) toast.error('Unable to load your recent activity.');
+      if (testResult.status === 'fulfilled') setTests(testResult.value.data || []);
+      setLoading(false);
     };
-    load();
-  }, []);
-
-  if (loading) return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Loader2 size={32} color="#6366f1" className="animate-spin" />
+    const loadSections = async () => {
+      try { const { data } = await axios.get(sectionPath); if (active) setSections(data || []); }
+      catch (error) { if (active && error.response?.status !== 401) setSections([]); }
+    };
+    loadRequired();
+    loadSections();
+    return () => { active = false; };
+  }, [user?.role]);
+  if (loading) return <div className="page-wrapper"><div className="page-content dashboard-loading"><Loader2 size={28} className="animate-spin" /><span>Preparing your workspace...</span></div></div>;
+  const isStudent = user?.role === 'Student'; const isTeacher = user?.role === 'Teacher'; const graded = submissions.filter(s => s.status === 'Completed').length; const pending = submissions.filter(s => ['Pending', 'Processing'].includes(s.status)).length;
+  const firstName = user?.name?.split(' ')[0] || 'there';
+  const stats = isStudent ? [{ label: 'Available exams', value: exams.length, icon: BookOpen, tone: 'blue' }, { label: 'Completed work', value: graded, icon: CheckCircle2, tone: 'green' }, { label: 'Awaiting review', value: pending, icon: Clock3, tone: 'amber' }] : [{ label: 'My exams', value: exams.length, icon: BookOpen, tone: 'blue' }, { label: 'Graded submissions', value: graded, icon: CheckCircle2, tone: 'green' }, { label: 'Needs attention', value: pending, icon: Clock3, tone: 'amber' }];
+  return <div className="page-wrapper"><div className="page-content">
+    <section className="welcome-banner"><div><p className="eyebrow">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p><h1>Good to see you, <span className="gradient-text">{firstName}</span>.</h1><p>{isStudent ? 'Keep your momentum going. Your next learning milestone is close.' : 'A clear view of your assessment work, all in one place.'}</p></div><div className="welcome-art"><Sparkles size={25} /><span>{isStudent ? 'Learn with confidence' : 'Build better assessments'}</span></div></section>
+    <div className="dashboard-stats">{stats.map(({ label, value, icon: Icon, tone }) => <div className="stat-card stat-card-modern" key={label}><div className={`stat-icon ${tone}`}><Icon size={18} /></div><div><span>{label}</span><strong>{value}</strong></div></div>)}</div>
+    <section className="dashboard-section-strip"><div className="section-heading"><div><p className="eyebrow">Class access</p><h2>{isStudent ? 'My sections' : 'My sections'}</h2></div>{isTeacher && <button className="btn-secondary compact" onClick={() => navigate('/teacher/sections')}>Manage sections</button>}</div>{sections.length ? <div className="section-chip-list">{sections.map(section => <span className="badge badge-indigo" key={section.id}>{section.code} · {section.student_count || 0} students</span>)}</div> : <p className="muted-copy">{isTeacher ? 'Create a section to assign tests.' : 'You are not enrolled in a section yet.'}</p>}</section>
+    <div className={`dashboard-grid ${submissions.length ? '' : 'single'}`}>
+      <section><div className="section-heading"><div><p className="eyebrow">Your workspace</p><h2>{isStudent ? 'Available exams' : 'My exams'}</h2></div>{isTeacher && <button className="btn-primary" onClick={() => navigate('/teacher/exam/create')}><Plus size={16} /> New exam</button>}</div>{exams.length === 0 ? <div className="empty-state glass-card"><FileText size={30} /><h3>No exams yet</h3><p>{isTeacher ? 'Create your first assessment to get started.' : 'Published exams will appear here.'}</p></div> : <div className="stack-list">{exams.slice(0, 8).map(exam => <div className="exam-row exam-card" key={exam._id}><div className="row-icon"><BookOpen size={17} /></div><div className="row-copy"><div><StatusBadge status={exam.status} /> <span className="row-meta">{exam.questions?.length || 0} questions</span></div><strong>{exam.title}</strong></div>{isStudent && exam.status === 'Active' && <button className="btn-secondary compact" onClick={() => navigate(`/student/exam/${exam._id}/submit`)}><Upload size={14} /> Submit</button>}<ChevronRight size={17} className="row-arrow" /></div>)}</div>}</section>
+      {submissions.length > 0 && <section><div className="section-heading"><div><p className="eyebrow">Recent activity</p><h2>Submissions</h2></div></div><div className="stack-list">{submissions.slice(0, 7).map(sub => <button className="submission-row" key={sub._id} onClick={() => navigate(isStudent ? `/student/submission/${sub._id}` : `/teacher/submission/${sub._id}`)}><div className="row-icon soft"><ClipboardList size={17} /></div><div className="row-copy"><strong>{sub.examId?.title || 'Exam submission'}</strong>{!isStudent && sub.studentId && <span>{sub.studentId.name}</span>}</div><div className="submission-status">{sub.status === 'Completed' && <b>{sub.totalMarks} pts</b>}<StatusBadge status={sub.status} /></div><ChevronRight size={16} className="row-arrow" /></button>)}</div></section>}
     </div>
-  );
-
-  const isStudent = user?.role === 'Student';
-  const isTeacher = user?.role === 'Teacher';
-  const graded  = submissions.filter(s => s.status === 'Completed').length;
-  const pending = submissions.filter(s => s.status === 'Pending' || s.status === 'Processing').length;
-
-  return (
-    <div className="page-wrapper">
-      <div className="page-content">
-
-        {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <p style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '0.375rem' }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#f1f5f9', margin: 0, letterSpacing: '-0.02em' }}>
-            Hello, <span className="gradient-text">{user?.name?.split(' ')[0]}</span> 👋
-          </h1>
-          <p style={{ color: '#64748b', marginTop: '0.375rem' }}>
-            {isStudent ? 'Here are your exams and submissions.' : 'Manage exams and review submissions.'}
-          </p>
-        </div>
-
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-          {[
-            { icon: BookOpen, label: isStudent ? 'Available Exams' : 'My Exams', value: exams.length, color: '#818cf8', bg: 'rgba(99,102,241,0.15)' },
-            { icon: CheckCircle, label: 'Graded', value: graded, color: '#34d399', bg: 'rgba(16,185,129,0.12)' },
-            { icon: Clock, label: 'Pending', value: pending, color: '#fbbf24', bg: 'rgba(245,158,11,0.12)' },
-          ].map(({ icon: Icon, label, value, color, bg }) => (
-            <div key={label} className="stat-card" style={{ padding: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <div style={{ width: 36, height: 36, background: bg, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={17} color={color} />
-                </div>
-                <span style={{ fontSize: '0.8125rem', color: '#94a3b8', fontWeight: 500 }}>{label}</span>
-              </div>
-              <p style={{ fontSize: '2rem', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>{value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: submissions.length ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
-
-          {/* Exams */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
-                {isStudent ? 'Available Exams' : 'My Exams'}
-              </h2>
-              {isTeacher && (
-                <button className="btn-primary" style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }} onClick={() => navigate('/teacher/exam/create')}>
-                  <PlusSquare size={14} /> New Exam
-                </button>
-              )}
-            </div>
-
-            {exams.length === 0 ? (
-              <div className="glass-card" style={{ padding: '2.5rem', textAlign: 'center' }}>
-                <FileText size={36} color="#334155" style={{ margin: '0 auto 0.75rem' }} />
-                <p style={{ color: '#64748b', margin: 0 }}>No exams yet.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-                {exams.map(exam => (
-                  <div key={exam._id} className="exam-card" style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <StatusBadge status={exam.status} />
-                        <span style={{ fontSize: '0.6875rem', color: '#64748b' }}>{exam.questions?.length} Q</span>
-                      </div>
-                      <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#e2e8f0', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.title}</p>
-                    </div>
-                    {isStudent && exam.status === 'Active' && (
-                      <button onClick={() => navigate(`/student/exam/${exam._id}/submit`)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.4rem 0.75rem', borderRadius: 7, border: 'none', background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                        <Upload size={12} /> Submit
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Submissions */}
-          {submissions.length > 0 && (
-            <div>
-              <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#f1f5f9', margin: '0 0 1rem' }}>Submissions</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-                {submissions.slice(0, 8).map(sub => (
-                  <div key={sub._id}
-                    onClick={() => navigate(isStudent ? `/student/submission/${sub._id}` : `/teacher/submission/${sub._id}`)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s ease' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#e2e8f0', margin: '0 0 0.125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {sub.examId?.title || 'Exam'}
-                      </p>
-                      {!isStudent && sub.studentId && (
-                        <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>{sub.studentId.name}</p>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                      {sub.status === 'Completed' && (
-                        <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#34d399' }}>{sub.totalMarks} pts</span>
-                      )}
-                      <StatusBadge status={sub.status} />
-                      <ChevronRight size={14} color="#475569" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+    <section className="tests-preview">
+      <div className="section-heading">
+        <div><p className="eyebrow">MCQ tests</p><h2>{isStudent ? 'Assigned tests' : 'My MCQ tests'}</h2></div>
+        {isStudent && <button className="btn-secondary compact" onClick={() => navigate('/student/tests')}>View all</button>}
+        {isTeacher && <button className="btn-secondary compact" onClick={() => navigate('/teacher/test/create')}>Create test</button>}
       </div>
-    </div>
-  );
+      {tests.length === 0 ? <p className="muted-copy">{isTeacher ? 'Generate and publish MCQs from the AI test builder.' : 'Tests assigned to your sections will appear here.'}</p> : <div className="stack-list">{tests.slice(0, 6).map(test => <article className="exam-row exam-card" key={test.id}><div className="row-icon soft"><ClipboardList size={17} /></div><div className="row-copy"><div><span className="badge badge-indigo">{test.difficulty || 'MCQ'}</span><span className="row-meta">{test.question_count} questions</span></div><strong>{test.title}</strong></div>{isStudent && <button className="btn-primary compact" onClick={() => navigate(`/student/test/${test.id}`)}>Start test</button>}</article>)}</div>}
+    </section>
+  </div></div>;
 };
-
 export default Dashboard;

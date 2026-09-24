@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -48,7 +48,9 @@ const EvaluationResult = () => {
     }
   }, [id]);
 
-  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+  useEffect(() => {
+    Promise.resolve().then(fetchStatus);
+  }, [fetchStatus]);
   useEffect(() => {
     if (!polling) return;
     const t = setInterval(fetchStatus, 4000);
@@ -97,7 +99,7 @@ const EvaluationResult = () => {
             {polling && <span style={{ fontSize: '0.8125rem', color: '#818cf8', display: 'flex', alignItems: 'center', gap: '0.375rem' }}><Brain size={14} /> Grading…</span>}
             {submission.status === 'Pending' && (
               <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
-                onClick={async () => { try { await axios.post(`/submissions/evaluate/${id}`); toast.success('Evaluation started!'); fetchStatus(); } catch { toast.error('Failed'); } }}>
+                onClick={async () => { try { await axios.post(`/submissions/${id}/evaluate`); toast.success('Evaluation started!'); fetchStatus(); } catch { toast.error('Failed'); } }}>
                 Start AI Evaluation
               </button>
             )}

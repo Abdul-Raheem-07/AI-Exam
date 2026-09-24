@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import imageCompression from 'browser-image-compression';
 import axios from 'axios';
@@ -15,14 +15,14 @@ const SubmitExam = () => {
 
   useEffect(() => {
     axios.get(`/exams/${examId}`).then(r => setExam(r.data)).catch(() => {});
-    return () => images.forEach(img => URL.revokeObjectURL(img.preview));
+    return undefined;
   }, [examId]);
 
   const onDrop = useCallback(async (acceptedFiles) => {
     const toastId = toast.loading('Compressing images…');
     try {
       const compressed = await Promise.all(
-        acceptedFiles.map(f => imageCompression(f, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }))
+        acceptedFiles.map(f => f.type === 'application/pdf' ? f : imageCompression(f, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }))
       );
       setImages(prev => [...prev, ...compressed.map(f => ({ file: f, preview: URL.createObjectURL(f) }))]);
       toast.success(`${compressed.length} image(s) ready`, { id: toastId });
@@ -31,7 +31,7 @@ const SubmitExam = () => {
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] } });
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [], 'application/pdf': ['.pdf'] } });
 
   const handleSubmit = async () => {
     if (!images.length) { toast.error('Add at least one image'); return; }

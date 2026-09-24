@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -58,7 +58,7 @@ const CreateExam = () => {
     setSaving(true);
 
     try {
-      await axios.post('/exams', {
+      await axios.post('/teacher/exams', {
         title: title.trim(),
         description: description.trim(),
         rubric: rubric.trim(),
