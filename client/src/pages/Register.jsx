@@ -1,14 +1,213 @@
 import { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { Brain, Mail, Lock, User, ChevronDown, ArrowRight, Loader2, Eye, EyeOff, Sparkles } from 'lucide-react';
+import {
+  Brain,
+  Mail,
+  Lock,
+  User,
+  ChevronDown,
+  ArrowRight,
+  Loader2,
+  Eye,
+  EyeOff,
+  Sparkles
+} from 'lucide-react';
 
-const PasswordField = ({ value, setValue, visible, setVisible, label, autoComplete }) => <div><label className="label-dark">{label}</label><div className="field-with-icon"><Lock size={16} /><input className="input-dark" type={visible ? 'text' : 'password'} required autoComplete={autoComplete} value={value} onChange={e => setValue(e.target.value)} placeholder={label} /><button type="button" className="field-action" onClick={() => setVisible(!visible)} aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>;
+// Password Field Component (Fixed Icon Overlap)
+const PasswordField = ({ value, setValue, visible, setVisible, label, autoComplete }) => {
+  return (
+    <div>
+      <label className="label-dark">{label}</label>
+      <div className="field-with-icon relative flex items-center">
+        <Lock size={16} className="absolute left-3 text-gray-400 pointer-events-none" />
+        <input
+          className="input-dark w-full pl-10 pr-10"
+          type={visible ? 'text' : 'password'}
+          required
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={label}
+        />
+        <button
+          type="button"
+          className="field-action absolute right-3 flex items-center justify-center text-gray-400 hover:text-white"
+          onClick={() => setVisible(!visible)}
+          aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+        >
+          {visible ? <EyeOff size={17} /> : <Eye size={17} />}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const Register = () => {
-  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState(''); const [showPassword, setShowPassword] = useState(false); const [showConfirmPassword, setShowConfirmPassword] = useState(false); const [role, setRole] = useState('Student'); const [loading, setLoading] = useState(false);
-  const { register } = useContext(AuthContext); const navigate = useNavigate();
-  const handleSubmit = async (event) => { event.preventDefault(); if (loading) return; const trimmedName = name.trim(); const trimmedEmail = email.trim(); if (!trimmedName || !trimmedEmail || !password) return; if (password !== confirmPassword) { alert('Passwords do not match'); return; } setLoading(true); try { const user = await register(trimmedName, trimmedEmail, password, role); navigate({ Student: '/student/dashboard', Teacher: '/teacher/dashboard', Admin: '/admin/dashboard' }[user?.role] || '/'); } catch (error) { console.error(error); } finally { setLoading(false); } };
-  return <main className="auth-shell"><div className="auth-aside"><div className="auth-brand"><span className="brand-icon"><Brain size={20} /></span><strong>ExamAI</strong></div><div><p className="eyebrow">Start with a clear path</p><h1>Turn curiosity into progress.</h1><p>Create a learning space that helps you practice, assess, and improve with confidence.</p></div><div className="auth-note"><Sparkles size={17} /><span>One account for every learning milestone.</span></div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="auth-heading"><p className="eyebrow">Create your workspace</p><h2>Join ExamAI</h2><p>Choose your role and make the platform yours.</p></div><form className="auth-form register-form" onSubmit={handleSubmit}><div><label className="label-dark">Full name</label><div className="field-with-icon"><User size={16} /><input className="input-dark" type="text" required autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" /></div></div><div><label className="label-dark">Email address</label><div className="field-with-icon"><Mail size={16} /><input className="input-dark" type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></div></div><PasswordField label="Password" value={password} setValue={setPassword} visible={showPassword} setVisible={setShowPassword} autoComplete="new-password" /><PasswordField label="Confirm password" value={confirmPassword} setValue={setConfirmPassword} visible={showConfirmPassword} setVisible={setShowConfirmPassword} autoComplete="new-password" /><div><label className="label-dark">I am joining as</label><div className="select-with-icon"><select className="input-dark" value={role} onChange={e => setRole(e.target.value)}><option value="Student">Student</option><option value="Teacher">Teacher</option></select><ChevronDown size={16} /></div></div><button className="btn-primary auth-submit" disabled={loading}>{loading ? <Loader2 size={18} className="animate-spin" /> : <>Create account <ArrowRight size={16} /></>}</button></form><p className="auth-footer">Already have an account? <Link to="/login">Sign in</Link></p></div></section></main>;
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [role, setRole] = useState('Student');
+  const [loading, setLoading] = useState(false);
+
+  const { register } = useContext(AuthContext);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName || !trimmedEmail || !password) return;
+
+    if (password !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const user = await register(trimmedName, trimmedEmail, password, role);
+      const dashboardRoutes = {
+        Student: '/student/dashboard',
+        Teacher: '/teacher/dashboard',
+        Admin: '/admin/dashboard',
+      };
+      navigate(dashboardRoutes[user?.role] || '/');
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="auth-shell">
+      {/* Sidebar / Left Panel */}
+      <div className="auth-aside">
+        <div className="auth-brand">
+          <span className="brand-icon">
+            <Brain size={20} />
+          </span>
+          <strong>ExamAI</strong>
+        </div>
+        <div>
+          <p className="eyebrow">Start with a clear path</p>
+          <h1>Turn curiosity into progress.</h1>
+          <p>
+            Create a learning space that helps you practice, assess, and improve with confidence.
+          </p>
+        </div>
+        <div className="auth-note">
+          <Sparkles size={17} />
+          <span>One account for every learning milestone.</span>
+        </div>
+      </div>
+
+      {/* Main Form Panel */}
+      <section className="auth-panel">
+        <div className="auth-form-wrap">
+          <div className="auth-heading">
+            <p className="eyebrow">Create your workspace</p>
+            <h2>Join ExamAI</h2>
+            <p>Choose your role and make the platform yours.</p>
+          </div>
+
+          <form className="auth-form register-form" onSubmit={handleSubmit}>
+            {/* Name Input */}
+            <div>
+              <label className="label-dark">Full name</label>
+              <div className="field-with-icon">
+                <User size={16} />
+                <input
+                  className="input-dark"
+                  type="text"
+                  required
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your full name"
+                />
+              </div>
+            </div>
+
+            {/* Email Input */}
+            <div>
+              <label className="label-dark">Email address</label>
+              <div className="field-with-icon">
+                <Mail size={16} />
+                <input
+                  className="input-dark"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                />
+              </div>
+            </div>
+
+            {/* Password Inputs */}
+            <PasswordField
+              label="Password"
+              value={password}
+              setValue={setPassword}
+              visible={showPassword}
+              setVisible={setShowPassword}
+              autoComplete="new-password"
+            />
+
+            <PasswordField
+              label="Confirm password"
+              value={confirmPassword}
+              setValue={setConfirmPassword}
+              visible={showConfirmPassword}
+              setVisible={setShowConfirmPassword}
+              autoComplete="new-password"
+            />
+
+            {/* Role Select */}
+            <div>
+              <label className="label-dark">I am joining as</label>
+              <div className="select-with-icon">
+                <select
+                  className="input-dark"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  <option value="Student">Student</option>
+                  <option value="Teacher">Teacher</option>
+                </select>
+                <ChevronDown size={16} />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button className="btn-primary auth-submit" disabled={loading}>
+              {loading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <>
+                  Create account <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Already have an account? <Link to="/login">Sign in</Link>
+          </p>
+        </div>
+      </section>
+    </main>
+  );
 };
+
 export default Register;
